@@ -36,20 +36,79 @@ int ln = 1;
 /* remove leading whitespace                    */
 int rmWhitespace(){
 
-    nextChar = getc(sCode);
-    if (nextChar == '\n')
-        ln++;
-
     /* pass through all whitespace              */
     while (isspace(nextChar)){
-        nextChar = getc(sCode);
         if (nextChar == '\n')
             ln++;
+        nextChar = getc(sCode);
     }
 
     /* return first non-whitespace character    */
     return nextChar;
 }
+
+int findComEnd(){
+    nextChar = getc(sCode);
+    if (nextChar == '\n') ln++;
+
+    while (nextChar != '*') {       //also check for eof
+        nextChar = getc(sCode);
+        if (nextChar == '\n') ln++;
+    }
+
+    nextChar = getc(sCode);
+    if (nextChar == '\n') ln++;
+
+    if (nextChar == '/'){
+        nextChar = getc(sCode);
+    }
+    else {
+        findComEnd();
+    }
+
+    return nextChar;
+}
+
+/* comment remover                              */
+int skipComment(){
+
+    if (nextChar == '/'){
+        nextChar = getc(sCode);
+        /* single line comment                */
+        if (nextChar == '/'){
+            /* scan characters until new line or EOF is reached */
+            while (nextChar != '\n' && nextChar != EOF){
+                nextChar = getc(sCode);
+            }
+            if (nextChar == '\n'){
+                ln++;
+                nextChar = getc(sCode);
+            }
+        }
+
+        /* multi-line comment                 */
+        else if (nextChar == '*'){
+            findComEnd();
+        }
+    }
+
+    return nextChar;
+}
+
+int findNextT(){
+
+    /* get next character                       */
+    nextChar = getc(sCode);
+
+    /* check to remove whitespace or a potential comment  */
+    while (isspace(nextChar) || nextChar == '/'){
+        nextChar = rmWhitespace();
+        nextChar = skipComment();
+    }
+
+    return nextChar;
+}
+
 
 /* see if next char is EOF, creating token appropriately if so  */
 Token checkEOF(Token t){
@@ -98,10 +157,12 @@ Token GetNextToken (){
 	Token t;
     t.tp = ERR;
 
-    /* consume all leading whitespace         */
-    nextChar = rmWhitespace();
+    /* consume all leading whitespace and comments        */
+    nextChar = findNextT();
+
     /* check for EOF                          */
     t = checkEOF(t);
+    if (t.tp == EOFile) return t;
 
     return t;
 }
@@ -119,6 +180,7 @@ Token PeekNextToken (){
     t = checkEOF(t);
     /* replace checked character              */
     ungetc(nextChar, sCode);
+    if (t.tp == EOFile) return t;
 
     return t;
 }
@@ -137,8 +199,8 @@ int main(int argc, char *argv[]){
     // NOTE: the autograder will not use your main function
     InitLexer(argv[1]);
     Token t;
-    t = PeekNextToken();
-    printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+    //t = PeekNextToken();
+    //printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
     t = GetNextToken();
     printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
     StopLexer();
