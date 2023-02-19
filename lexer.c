@@ -35,15 +35,20 @@ int nextChar;
 int ln = 1;
 
 
+/* read next character, checking for newline    */
+int readNext(){
+    nextChar = getc(sCode);
+    if (nextChar == '\n') ln++;
+
+    return nextChar;
+}
 
 /* remove leading whitespace                    */
 int rmWhitespace(){
 
     /* pass through all whitespace              */
     while (isspace(nextChar)){
-        if (nextChar == '\n')
-            ln++;
-        nextChar = getc(sCode);
+        nextChar = readNext();
     }
 
     /* return first non-whitespace character    */
@@ -51,18 +56,15 @@ int rmWhitespace(){
 }
 
 int findComEnd(){
-    nextChar = getc(sCode);
-    if (nextChar == '\n') ln++;
+    nextChar = readNext();
     if (nextChar == EOF) return nextChar = ERRTOK;
 
-    while (nextChar != '*') {       //also check for eof
-        nextChar = getc(sCode);
-        if (nextChar == '\n') ln++;
+    while (nextChar != '*') {
+        nextChar = readNext();
         if (nextChar == EOF) return nextChar = ERRTOK;
     }
 
-    nextChar = getc(sCode);
-    if (nextChar == '\n') ln++;
+    nextChar = readNext();
     if (nextChar == EOF) return nextChar = ERRTOK;
 
     if (nextChar == '/'){
@@ -88,13 +90,18 @@ int skipComment(){
             }
             if (nextChar == '\n'){
                 ln++;
-                nextChar = getc(sCode);
+                nextChar = readNext();
             }
         }
 
         /* multi-line comment                 */
         else if (nextChar == '*'){
             findComEnd();
+        }
+
+        /* not a comment, put char back       */
+        else {
+            ungetc(nextChar, sCode);    //TODO:confirm what nextChar is now storing
         }
     }
 
@@ -104,7 +111,7 @@ int skipComment(){
 int findNextT(){
 
     /* get next character                       */
-    nextChar = getc(sCode);
+    nextChar = readNext();
 
     /* check to remove whitespace or a potential comment  */
     while (isspace(nextChar) || nextChar == '/'){
@@ -174,6 +181,38 @@ Token GetNextToken (){
         t.ln = ln;
         strcpy(t.fl, filename);
         return t;
+    }
+
+    /* string literal                         */
+    if (nextChar == '\"'){
+        /* create empty string to append to */
+        char str[0];
+        nextChar = getc(sCode);
+        while(nextChar != '\"'){
+            /* check for EOF mid-string         */
+            if (nextChar == EOF){
+                t.tp = ERR;
+                strcpy(t.lx, "Error: unexpected eof in string constant");
+                t.ec = EofInStr;
+                t.ln = ln;
+                strcpy(t.fl, filename);
+                return t;
+            }
+
+            /* check for newline mid-string         */
+            if (nextChar == '\n'){
+                t.tp = ERR;
+                strcpy(t.lx, "Error: unexpected newline in string constant");
+                t.ec = NewLnInStr;
+                t.ln = ln;
+                strcpy(t.fl, filename);
+                return t;
+            }
+
+            /* otherwise add character to string */
+            //TODO:implement string builder to build lexeme for token 
+            nextChar = getc(sCode);
+        }
     }
 
     /* check for EOF                          */
