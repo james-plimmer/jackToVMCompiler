@@ -22,6 +22,9 @@ Date Work Commenced: 17/2/2023
 #include "lexer.h"
 
 // YOU CAN ADD YOUR OWN FUNCTIONS, DECLARATIONS AND VARIABLES HERE
+#define ERRTOK (-2)
+
+
 /* pointer to the file                          */
 FILE* sCode;
 /* file name                                    */
@@ -50,14 +53,17 @@ int rmWhitespace(){
 int findComEnd(){
     nextChar = getc(sCode);
     if (nextChar == '\n') ln++;
+    if (nextChar == EOF) return nextChar = ERRTOK;
 
     while (nextChar != '*') {       //also check for eof
         nextChar = getc(sCode);
         if (nextChar == '\n') ln++;
+        if (nextChar == EOF) return nextChar = ERRTOK;
     }
 
     nextChar = getc(sCode);
     if (nextChar == '\n') ln++;
+    if (nextChar == EOF) return nextChar = ERRTOK;
 
     if (nextChar == '/'){
         nextChar = getc(sCode);
@@ -159,6 +165,16 @@ Token GetNextToken (){
 
     /* consume all leading whitespace and comments        */
     nextChar = findNextT();
+
+    /* EOF in a comment                       */
+    if (nextChar == ERRTOK){
+        t.tp = ERR;
+        strcpy(t.lx, "Error: unexpected eof in comment");
+        t.ec = EofInCom;
+        t.ln = ln;
+        strcpy(t.fl, filename);
+        return t;
+    }
 
     /* check for EOF                          */
     t = checkEOF(t);
