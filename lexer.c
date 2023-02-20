@@ -24,11 +24,14 @@ Date Work Commenced: 17/2/2023
 // YOU CAN ADD YOUR OWN FUNCTIONS, DECLARATIONS AND VARIABLES HERE
 #define ERRTOK (-2)
 
-/* array of all keywords - ending with false                      */
+/* array of all keywords - ending with boolean false            */
 const char* KEYWORDS[] = {"class", "constructor", "method", "function", "int", "boolean", "char", "void",
 "var", "static", "field", "let", "do", "if", "else", "while", "return",
 "true", "false", "null", "this", 0};
 
+/* array of all legal symbols - ended with boolean false        */
+const char SYMBS[] = {'(',')', '[', ']', '{', '}', '<', '>', '+', '-', '*', '/',
+                      '=', ',', ';', '.', '&', '|', '~', 0};
 
 /* pointer to the file                          */
 FILE* sCode;
@@ -297,8 +300,31 @@ Token GetNextToken (){
         strcpy(t.fl,filename);
         return t;
     }
-    /* if none of above, must be a symbol       */
 
+    /* if none of above, must be a symbol       */
+    /* determine if symbol is legal by looking up lexeme in legal symbol list   */
+    /* index all legal symbols               */
+    int j = 0;
+    /* for all symbols                             */
+    while (SYMBS[j]){
+        /* if lexeme is a legal symbol               */
+        if (SYMBS[j] == nextChar){
+            /* create symbol token           */
+            t.tp = SYMBOL;
+            t.lx[0] = (char)nextChar;
+            t.ln = ln;
+            strcpy(t.fl, filename);
+            return t;
+        }
+        j++;
+    }
+
+    /* otherwise must be an illegal symbol     */
+    t.tp = ERR;
+    strcpy(t.lx, "ERROR: Illegal Symbol");
+    t.ec = IllSym;
+    t.ln = ln;
+    strcpy(t.fl, filename);                 //TODO: refactor since ln and fl repeated assignment throughout
     return t;
 }
 
