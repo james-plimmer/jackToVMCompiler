@@ -241,7 +241,7 @@ Token GetNextToken (){
         nextChar = readNext();
         return t;
     }
-    printf("%d",ln);
+
     /* keyword or identifier        */
     if (isalpha(nextChar)){
         /* lexeme index to assign char to       */
@@ -252,6 +252,8 @@ Token GetNextToken (){
             i++;
             nextChar = getc(sCode);
         }
+        /* put non-alphanumeric char back  */
+        ungetc(nextChar, sCode);
 
         /* determine token type by looking up lexeme in keyword list */
         /* index all keywords               */
@@ -264,7 +266,6 @@ Token GetNextToken (){
                 t.tp = RESWORD;
                 t.ln = ln;
                 strcpy(t.fl, filename);
-                if (nextChar == '\n') ln++;
                 return t;
             }
             j++;
@@ -274,12 +275,28 @@ Token GetNextToken (){
         t.tp = ID;
         t.ln = ln;
         strcpy(t.fl, filename);                 //TODO: refactor since ln and fl repeated assignment throughout
-        if (nextChar == '\n') ln++;
         return t;
     }
 
     /* number               */
+    if (isdigit(nextChar)){
+        /* lexeme index to assign char to       */
+        int i = 0;
+        /* add trailing numeric characters to lexeme */
+        while (isdigit(nextChar)){
+            t.lx[i] = (char)nextChar;
+            i++;
+            nextChar = getc(sCode);
+        }
+        /* put non-digit char back  */
+        ungetc(nextChar, sCode);
 
+        /* create token         */
+        t.tp = INT;
+        t.ln = ln;
+        strcpy(t.fl,filename);
+        return t;
+    }
     /* if none of above, must be a symbol       */
 
     return t;
