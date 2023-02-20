@@ -24,6 +24,11 @@ Date Work Commenced: 17/2/2023
 // YOU CAN ADD YOUR OWN FUNCTIONS, DECLARATIONS AND VARIABLES HERE
 #define ERRTOK (-2)
 
+/* array of all keywords - ending with false                      */
+const char* KEYWORDS[] = {"class", "constructor", "method", "function", "int", "boolean", "char", "void",
+"var", "static", "field", "let", "do", "if", "else", "while", "return",
+"true", "false", "null", "this", 0};
+
 
 /* pointer to the file                          */
 FILE* sCode;
@@ -55,21 +60,26 @@ int rmWhitespace(){
     return nextChar;
 }
 
+
+/* find the end of a multi-line comment - checking for unexpected EOF   */
 int findComEnd(){
+    /* read next character                  */
     nextChar = readNext();
     if (nextChar == EOF) return nextChar = ERRTOK;
 
+    /* keep reading comment until a '*' is found    */
     while (nextChar != '*') {
         nextChar = readNext();
         if (nextChar == EOF) return nextChar = ERRTOK;
     }
 
+    /* check if char after the '*' is a '/' - closing the comment */
     nextChar = readNext();
     if (nextChar == EOF) return nextChar = ERRTOK;
-
     if (nextChar == '/'){
-        nextChar = getc(sCode);
+        nextChar = readNext();
     }
+    /* if not, keep searching for the next '*'      */
     else {
         findComEnd();
     }
@@ -170,6 +180,9 @@ Token GetNextToken (){
 	Token t;
     t.tp = ERR;
 
+    /* clear lexeme                     */
+    memset(t.lx,0,sizeof(t.lx));
+
     /* consume all leading whitespace and comments        */
     nextChar = findNextT();
 
@@ -182,6 +195,10 @@ Token GetNextToken (){
         strcpy(t.fl, filename);
         return t;
     }
+
+    /* check for EOF                          */
+    t = checkEOF(t);
+    if (t.tp == EOFile) return t;
 
     /* string literal                         */
     if (nextChar == '\"'){
@@ -210,7 +227,6 @@ Token GetNextToken (){
             }
 
             /* otherwise add character to string */
-            //TODO:implement string builder to build lexeme for token
             t.lx[i] = (char)nextChar;
             i++;
             nextChar = getc(sCode);
@@ -221,19 +237,57 @@ Token GetNextToken (){
         t.ln = ln;
         strcpy(t.fl, filename);
 
+        /* skip past closing '"'      */
+        nextChar = readNext();
+        return t;
+    }
+    printf("%d",ln);
+    /* keyword or identifier        */
+    if (isalpha(nextChar)){
+        /* lexeme index to assign char to       */
+        int i = 0;
+        /* add trailing alphanumeric characters to lexeme */
+        while (isalnum(nextChar)){
+            t.lx[i] = (char)nextChar;
+            i++;
+            nextChar = getc(sCode);
+        }
+
+        /* determine token type by looking up lexeme in keyword list */
+        /* index all keywords               */
+        int j = 0;
+        /* for all keywords                             */
+        while (KEYWORDS[j]){
+            /* if lexeme is a keyword               */
+            if (strcmp(KEYWORDS[j], t.lx) == 0){
+                /* create reserved word token           */
+                t.tp = RESWORD;
+                t.ln = ln;
+                strcpy(t.fl, filename);
+                if (nextChar == '\n') ln++;
+                return t;
+            }
+            j++;
+        }
+
+        /* otherwise must be an identifier     */
+        t.tp = ID;
+        t.ln = ln;
+        strcpy(t.fl, filename);                 //TODO: refactor since ln and fl repeated assignment throughout
+        if (nextChar == '\n') ln++;
         return t;
     }
 
-    /* check for EOF                          */
-    t = checkEOF(t);
-    if (t.tp == EOFile) return t;
+    /* number               */
+
+    /* if none of above, must be a symbol       */
 
     return t;
 }
 
 // peek (look) at the next token in the source file without removing it from the stream
+//TODO: stack implementation, each time new character is read, push to stack (modified readNext method)
 Token PeekNextToken (){
-
     /* initialise token                       */
     Token t;
     t.tp = ERR;
@@ -260,7 +314,7 @@ int StopLexer (){
 #ifndef TEST
 int main(int argc, char *argv[]){
     // implement your main function here
-    // NOTE: the autograder will not use your main function
+    // NOTE: the auto-grader will not use your main function
     InitLexer(argv[1]);
     Token t;
     //t = PeekNextToken();
