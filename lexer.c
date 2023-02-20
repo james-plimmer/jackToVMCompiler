@@ -185,9 +185,9 @@ Token GetNextToken (){
 
     /* string literal                         */
     if (nextChar == '\"'){
-        /* create empty string to append to */
-        char str[0];
         nextChar = getc(sCode);
+        /* lexeme index to assign char to       */
+        int i = 0;
         while(nextChar != '\"'){
             /* check for EOF mid-string         */
             if (nextChar == EOF){
@@ -210,9 +210,18 @@ Token GetNextToken (){
             }
 
             /* otherwise add character to string */
-            //TODO:implement string builder to build lexeme for token 
+            //TODO:implement string builder to build lexeme for token
+            t.lx[i] = (char)nextChar;
+            i++;
             nextChar = getc(sCode);
         }
+
+        /* create string literal token  */
+        t.tp = STRING;
+        t.ln = ln;
+        strcpy(t.fl, filename);
+
+        return t;
     }
 
     /* check for EOF                          */
@@ -255,9 +264,17 @@ int main(int argc, char *argv[]){
     InitLexer(argv[1]);
     Token t;
     //t = PeekNextToken();
-    //printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+
     t = GetNextToken();
+    while (t.tp != EOFile){
+        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+        if (t.tp == ERR){
+            exit(1);
+        }
+        t = GetNextToken();
+    }
     printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+
     StopLexer();
 	return 0;
 }
