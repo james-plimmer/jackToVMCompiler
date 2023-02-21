@@ -114,7 +114,7 @@ int skipComment(){
 
         /* not a comment, put char back       */
         else {
-            ungetc(nextChar, sCode);    //TODO:confirm what nextChar is now storing
+            ungetc(nextChar, sCode);
         }
     }
 
@@ -136,21 +136,134 @@ int findNextT(){
 }
 
 
-/* see if next char is EOF, creating token appropriately if so  */
-Token checkEOF(Token t){
+/* EOF token              */
+Token eof(Token t){
 
-    if (nextChar == EOF){
-        t.tp = EOFile;
-        strcpy(t.lx,"End Of File");
-        t.ln = ln;
-        strcpy(t.fl, filename);
-    }
+    t.tp = EOFile;
+    strcpy(t.lx,"End Of File");
+    t.ln = ln;
 
     return t;
 }
 
+/* string token         */
+Token string(Token t){
+    nextChar = getc(sCode);
+    /* lexeme index to assign char to       */
+    int i = 0;
+    while(nextChar != '\"'){
+        /* check for EOF mid-string         */
+        if (nextChar == EOF){
+            t.tp = ERR;
+            strcpy(t.lx, "Error: unexpected eof in string constant");
+            t.ec = EofInStr;
+            t.ln = ln;
+            return t;
+        }
+
+        /* check for newline mid-string         */
+        if (nextChar == '\n'){
+            t.tp = ERR;
+            strcpy(t.lx, "Error: unexpected newline in string constant");
+            t.ec = NewLnInStr;
+            t.ln = ln;
+            return t;
+        }
+
+        /* otherwise add character to string */
+        t.lx[i] = (char)nextChar;
+        i++;
+        nextChar = getc(sCode);
+    }
+
+    /* create string literal token  */
+    t.tp = STRING;
+    t.ln = ln;
+
+    /* skip past closing '"'      */
+    nextChar = readNext();
+    return t;
+}
 
 
+/* keyword or ID token      */
+Token keyID(Token t){
+    /* lexeme index to assign char to       */
+    int i = 0;
+    /* add trailing alphanumeric characters to lexeme */
+    while (isalnum(nextChar)){
+        t.lx[i] = (char)nextChar;
+        i++;
+        nextChar = getc(sCode);
+    }
+    /* put non-alphanumeric char back  */
+    ungetc(nextChar, sCode);
+
+    /* determine token type by looking up lexeme in keyword list */
+    /* index all keywords               */
+    int j = 0;
+    /* for all keywords                             */
+    while (KEYWORDS[j]){
+        /* if lexeme is a keyword               */
+        if (strcmp(KEYWORDS[j], t.lx) == 0){
+            /* create reserved word token           */
+            t.tp = RESWORD;
+            t.ln = ln;
+            return t;
+        }
+        j++;
+    }
+
+    /* otherwise must be an identifier     */
+    t.tp = ID;
+    t.ln = ln;
+    return t;
+}
+
+/* integer token assigner   */
+Token integer(Token t){
+    /* lexeme index to assign char to       */
+    int i = 0;
+    /* add trailing numeric characters to lexeme */
+    while (isdigit(nextChar)){
+        t.lx[i] = (char)nextChar;
+        i++;
+        nextChar = getc(sCode);
+    }
+    /* put non-digit char back  */
+    ungetc(nextChar, sCode);
+
+    /* create token         */
+    t.tp = INT;
+    t.ln = ln;
+    return t;
+}
+
+/* symbol token assigner        */
+Token symbol(Token t){
+    /* determine if symbol is legal by looking up lexeme in legal symbol list   */
+    /* index all legal symbols               */
+    int j = 0;
+    /* for all symbols                             */
+    while (SYMBS[j]){
+        /* if lexeme is a legal symbol               */
+        if (SYMBS[j] == nextChar){
+            /* create symbol token           */
+            t.tp = SYMBOL;
+            t.lx[0] = (char)nextChar;
+            t.ln = ln;
+            return t;
+        }
+        j++;
+    }
+
+    /* otherwise must be an illegal symbol     */
+    t.tp = ERR;
+    strcpy(t.lx, "ERROR: Illegal Symbol");
+    t.ec = IllSym;
+    t.ln = ln;
+    return t;
+}
 
 // IMPLEMENT THE FOLLOWING functions
 //***********************************
@@ -182,7 +295,7 @@ Token GetNextToken (){
     /* initialise token                       */
 	Token t;
     t.tp = ERR;
-
+    strcpy(t.fl, filename);
     /* clear lexeme                     */
     memset(t.lx,0,sizeof(t.lx));
 
@@ -195,137 +308,38 @@ Token GetNextToken (){
         strcpy(t.lx, "Error: unexpected eof in comment");
         t.ec = EofInCom;
         t.ln = ln;
-        strcpy(t.fl, filename);
         return t;
     }
 
     /* check for EOF                          */
-    t = checkEOF(t);
-    if (t.tp == EOFile) return t;
+    if (nextChar == EOF){
+        t= eof(t);
+        return t;
+    }
 
     /* string literal                         */
-    if (nextChar == '\"'){
-        nextChar = getc(sCode);
-        /* lexeme index to assign char to       */
-        int i = 0;
-        while(nextChar != '\"'){
-            /* check for EOF mid-string         */
-            if (nextChar == EOF){
-                t.tp = ERR;
-                strcpy(t.lx, "Error: unexpected eof in string constant");
-                t.ec = EofInStr;
-                t.ln = ln;
-                strcpy(t.fl, filename);
-                return t;
-            }
-
-            /* check for newline mid-string         */
-            if (nextChar == '\n'){
-                t.tp = ERR;
-                strcpy(t.lx, "Error: unexpected newline in string constant");
-                t.ec = NewLnInStr;
-                t.ln = ln;
-                strcpy(t.fl, filename);
-                return t;
-            }
-
-            /* otherwise add character to string */
-            t.lx[i] = (char)nextChar;
-            i++;
-            nextChar = getc(sCode);
-        }
-
-        /* create string literal token  */
-        t.tp = STRING;
-        t.ln = ln;
-        strcpy(t.fl, filename);
-
-        /* skip past closing '"'      */
-        nextChar = readNext();
+    else if (nextChar == '\"'){
+        t = string(t);
         return t;
     }
 
     /* keyword or identifier        */
-    if (isalpha(nextChar)){
-        /* lexeme index to assign char to       */
-        int i = 0;
-        /* add trailing alphanumeric characters to lexeme */
-        while (isalnum(nextChar)){
-            t.lx[i] = (char)nextChar;
-            i++;
-            nextChar = getc(sCode);
-        }
-        /* put non-alphanumeric char back  */
-        ungetc(nextChar, sCode);
-
-        /* determine token type by looking up lexeme in keyword list */
-        /* index all keywords               */
-        int j = 0;
-        /* for all keywords                             */
-        while (KEYWORDS[j]){
-            /* if lexeme is a keyword               */
-            if (strcmp(KEYWORDS[j], t.lx) == 0){
-                /* create reserved word token           */
-                t.tp = RESWORD;
-                t.ln = ln;
-                strcpy(t.fl, filename);
-                return t;
-            }
-            j++;
-        }
-
-        /* otherwise must be an identifier     */
-        t.tp = ID;
-        t.ln = ln;
-        strcpy(t.fl, filename);                 //TODO: refactor since ln and fl repeated assignment throughout
+    else if (isalpha(nextChar)){
+        t = keyID(t);
         return t;
     }
 
     /* number               */
-    if (isdigit(nextChar)){
-        /* lexeme index to assign char to       */
-        int i = 0;
-        /* add trailing numeric characters to lexeme */
-        while (isdigit(nextChar)){
-            t.lx[i] = (char)nextChar;
-            i++;
-            nextChar = getc(sCode);
-        }
-        /* put non-digit char back  */
-        ungetc(nextChar, sCode);
-
-        /* create token         */
-        t.tp = INT;
-        t.ln = ln;
-        strcpy(t.fl,filename);
+    else if (isdigit(nextChar)){
+        t = integer(t);
         return t;
     }
 
     /* if none of above, must be a symbol       */
-    /* determine if symbol is legal by looking up lexeme in legal symbol list   */
-    /* index all legal symbols               */
-    int j = 0;
-    /* for all symbols                             */
-    while (SYMBS[j]){
-        /* if lexeme is a legal symbol               */
-        if (SYMBS[j] == nextChar){
-            /* create symbol token           */
-            t.tp = SYMBOL;
-            t.lx[0] = (char)nextChar;
-            t.ln = ln;
-            strcpy(t.fl, filename);
-            return t;
-        }
-        j++;
+    else{
+        t = symbol(t);
+        return t;
     }
-
-    /* otherwise must be an illegal symbol     */
-    t.tp = ERR;
-    strcpy(t.lx, "ERROR: Illegal Symbol");
-    t.ec = IllSym;
-    t.ln = ln;
-    strcpy(t.fl, filename);                 //TODO: refactor since ln and fl repeated assignment throughout
-    return t;
 }
 
 // peek (look) at the next token in the source file without removing it from the stream
@@ -334,14 +348,6 @@ Token PeekNextToken (){
     /* initialise token                       */
     Token t;
     t.tp = ERR;
-
-    /* still remove all whitespace, not needing to be replaced after the peek   */
-    nextChar = rmWhitespace();
-    /* check for EOF                          */
-    t = checkEOF(t);
-    /* replace checked character              */
-    ungetc(nextChar, sCode);
-    if (t.tp == EOFile) return t;
 
     return t;
 }
@@ -358,22 +364,29 @@ int StopLexer (){
 int main(int argc, char *argv[]){
     // implement your main function here
     // NOTE: the auto-grader will not use your main function
-    InitLexer(argv[1]);
-    Token t;
-    //t = PeekNextToken();
+    if (argc == 2) {
+        InitLexer(argv[1]);
+        Token t;
+        //t = PeekNextToken();
 
-    t = GetNextToken();
-    while (t.tp != EOFile){
-        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
-        if (t.tp == ERR){
-            exit(1);
-        }
         t = GetNextToken();
-    }
-    printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+        while (t.tp != EOFile) {
+            printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+            if (t.tp == ERR) {
+                exit(1);
+            }
+            t = GetNextToken();
+        }
+        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
 
-    StopLexer();
-	return 0;
+        StopLexer();
+        return 0;
+    }
+
+    else {
+        return 1;
+    }
+
 }
 // do not remove the next line
 #endif
