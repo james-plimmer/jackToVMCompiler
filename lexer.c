@@ -398,8 +398,13 @@ Token PeekNextToken (){
     /* getNextToken methods must now not consume the characters as they are read
      * this is done by pushing characters read from the file to a stack, popping to ungetc after the token is read   */
     push(nextChar);
-    //t = eof(t);
-    t = symbol(t);
+    if (nextChar == EOF){
+        t = eof(t);
+    }
+    else {
+        t = symbol(t);
+    }
+
 
     while (sP != -1){
         printf("%d", sP);
