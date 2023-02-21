@@ -23,7 +23,7 @@ Date Work Commenced: 17/2/2023
 
 // YOU CAN ADD YOUR OWN FUNCTIONS, DECLARATIONS AND VARIABLES HERE
 /* error code to detect EOF in a comment    */
-#define ERRTOK (-2)
+#define EOFCOM (-2)
 
 
 /* array of all keywords - ending with boolean false            */
@@ -51,12 +51,14 @@ int ln = 1;
 /* determine if '/' needs replacing after reading potential comment     */
 int replaceSlash;
 
+/* push and pop methods below are used throughout token identifier/builder methods
+ * to enable the peekNextToken method to put the read chars back
+ * the stack is not used in getNextToken                            */
 /* push to the stack                            */
 void push(int c){
     sP ++;
     stack[sP] = c;
 }
-
 /* pop from stack                               */
 int pop(){
     int c = stack[sP];
@@ -89,17 +91,17 @@ int rmWhitespace(){
 int findComEnd(){
     /* read next character                  */
     nextChar = readNext();
-    if (nextChar == EOF) return nextChar = ERRTOK;
+    if (nextChar == EOF) return nextChar = EOFCOM;
 
     /* keep reading comment until a '*' is found    */
     while (nextChar != '*') {
         nextChar = readNext();
-        if (nextChar == EOF) return nextChar = ERRTOK;
+        if (nextChar == EOF) return nextChar = EOFCOM;
     }
 
     /* check if char after the '*' is a '/' - closing the comment */
     nextChar = readNext();
-    if (nextChar == EOF) return nextChar = ERRTOK;
+    if (nextChar == EOF) return nextChar = EOFCOM;
     if (nextChar == '/'){
         nextChar = readNext();
     }
@@ -178,6 +180,7 @@ Token eof(Token t){
 /* string token         */
 Token string(Token t){
     nextChar = getc(sCode);
+    push(nextChar);
     /* lexeme index to assign char to       */
     int i = 0;
     while(nextChar != '\"'){
@@ -203,6 +206,7 @@ Token string(Token t){
         t.lx[i] = (char)nextChar;
         i++;
         nextChar = getc(sCode);
+        push(nextChar);
     }
 
     /* create string literal token  */
@@ -211,6 +215,7 @@ Token string(Token t){
 
     /* skip past closing '"'      */
     nextChar = readNext();
+    push(nextChar);
     return t;
 }
 
@@ -224,9 +229,11 @@ Token keyID(Token t){
         t.lx[i] = (char)nextChar;
         i++;
         nextChar = getc(sCode);
+        push(nextChar);
     }
     /* put non-alphanumeric char back  */
     ungetc(nextChar, sCode);
+    pop();
 
     /* determine token type by looking up lexeme in keyword list */
     /* index all keywords               */
@@ -258,9 +265,11 @@ Token integer(Token t){
         t.lx[i] = (char)nextChar;
         i++;
         nextChar = getc(sCode);
+        push(nextChar);
     }
     /* put non-digit char back  */
     ungetc(nextChar, sCode);
+    pop();
 
     /* create token         */
     t.tp = INT;
@@ -332,7 +341,7 @@ Token GetNextToken (){
     nextChar = findNextT();
 
     /* EOF in a comment                       */
-    if (nextChar == ERRTOK){
+    if (nextChar == EOFCOM){
         t.tp = ERR;
         strcpy(t.lx, "Error: unexpected eof in comment");
         t.ec = EofInCom;
@@ -372,21 +381,20 @@ Token GetNextToken (){
 }
 
 // peek (look) at the next token in the source file without removing it from the stream
-//TODO: stack implementation, each time new character is read, push to stack (modified readNext method)
 Token PeekNextToken (){
     /* initialise token                       */
     Token t;
     strcpy(t.fl, filename);
 
-    /* same process as getNextToken for whitespace and comments, as these are not tokens, hence can be removed */
     /* clear lexeme                     */
     memset(t.lx,0,sizeof(t.lx));
 
+    /* same process as getNextToken for whitespace and comments, as these are not tokens, hence can be removed */
     /* consume all leading whitespace and comments        */
     nextChar = findNextT();
 
     /* EOF in a comment                       */
-    if (nextChar == ERRTOK){
+    if (nextChar == EOFCOM){
         t.tp = ERR;
         strcpy(t.lx, "Error: unexpected eof in comment");
         t.ec = EofInCom;
@@ -397,17 +405,36 @@ Token PeekNextToken (){
 
     /* getNextToken methods must now not consume the characters as they are read
      * this is done by pushing characters read from the file to a stack, popping to ungetc after the token is read   */
+    /* push char read by the whitespace / comment skipper   */
     push(nextChar);
+
+    /* eof                  */
     if (nextChar == EOF){
         t = eof(t);
     }
+
+    /* string literal                         */
+    else if (nextChar == '\"'){
+        t = string(t);
+    }
+
+    /* keyword or identifier        */
+    else if (isalpha(nextChar)){
+        t = keyID(t);
+    }
+
+    /* number               */
+    else if (isdigit(nextChar)){
+        t = integer(t);
+    }
+
+    /* must be a symbol if none of the above    */
     else {
         t = symbol(t);
     }
 
-
+    /* pop all elements in the stack, replacing them into the source file   */
     while (sP != -1){
-        printf("%d", sP);
         int lastChar = pop();
         ungetc(lastChar, sCode);
     }
@@ -430,22 +457,21 @@ int main(int argc, char *argv[]){
     if (argc == 2) {
         InitLexer(argv[1]);
         Token t;
-        for (int i = 0; i < 4; i ++){
+        for (int i = 0; i < 5; i ++){
             t = PeekNextToken();
             printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
         }
 
 
-//        t = GetNextToken();
-//        printf("GET");
-//        while (t.tp != EOFile) {
-//            printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
-//            if (t.tp == ERR) {
-//                exit(1);
-//            }
-//            t = GetNextToken();
-//        }
-//        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+        t = GetNextToken();
+        while (t.tp != EOFile) {
+            printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+            if (t.tp == ERR) {
+                exit(1);
+            }
+            t = GetNextToken();
+        }
+        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
 
         StopLexer();
         return 0;
