@@ -22,7 +22,9 @@ Date Work Commenced: 17/2/2023
 #include "lexer.h"
 
 // YOU CAN ADD YOUR OWN FUNCTIONS, DECLARATIONS AND VARIABLES HERE
+/* error code to detect EOF in a comment    */
 #define ERRTOK (-2)
+
 
 /* array of all keywords - ending with boolean false            */
 const char* KEYWORDS[] = {"class", "constructor", "method", "function", "int", "boolean", "char", "void",
@@ -33,6 +35,11 @@ const char* KEYWORDS[] = {"class", "constructor", "method", "function", "int", "
 const char SYMBS[] = {'(',')', '[', ']', '{', '}', '<', '>', '+', '-', '*', '/',
                       '=', ',', ';', '.', '&', '|', '~', 0};
 
+
+/* peekNextToken stack - matches max size of the lexeme   */
+int stack[128];
+/* pointer to top of stack - initialised to -1 for an empty stack   */
+int sP = -1;
 /* pointer to the file                          */
 FILE* sCode;
 /* file name                                    */
@@ -41,7 +48,21 @@ char* filename;
 int nextChar;
 /* variable to hold current line number         */
 int ln = 1;
+/* determine if '/' needs replacing after reading potential comment     */
+int replaceSlash;
 
+/* push to the stack                            */
+void push(int c){
+    sP ++;
+    stack[sP] = c;
+}
+
+/* pop from stack                               */
+int pop(){
+    int c = stack[sP];
+    sP--;
+    return c;
+}
 
 /* read next character, checking for newline    */
 int readNext(){
@@ -112,9 +133,10 @@ int skipComment(){
             findComEnd();
         }
 
-        /* not a comment, put char back       */
+        /* not a comment, put char  and '/' back       */
         else {
             ungetc(nextChar, sCode);
+            replaceSlash = 1;
         }
     }
 
@@ -126,10 +148,17 @@ int findNextT(){
     /* get next character                       */
     nextChar = readNext();
 
+    replaceSlash = 0;
     /* check to remove whitespace or a potential comment  */
     while (isspace(nextChar) || nextChar == '/'){
         nextChar = rmWhitespace();
         nextChar = skipComment();
+    }
+
+    /* replace slash if '/' wasn't the start of a comment   */
+    if (replaceSlash == 1){
+        ungetc('/', sCode);
+        nextChar = readNext();
     }
 
     return nextChar;
@@ -294,8 +323,8 @@ Token GetNextToken (){
 
     /* initialise token                       */
 	Token t;
-    t.tp = ERR;
     strcpy(t.fl, filename);
+
     /* clear lexeme                     */
     memset(t.lx,0,sizeof(t.lx));
 
@@ -347,7 +376,36 @@ Token GetNextToken (){
 Token PeekNextToken (){
     /* initialise token                       */
     Token t;
-    t.tp = ERR;
+    strcpy(t.fl, filename);
+
+    /* same process as getNextToken for whitespace and comments, as these are not tokens, hence can be removed */
+    /* clear lexeme                     */
+    memset(t.lx,0,sizeof(t.lx));
+
+    /* consume all leading whitespace and comments        */
+    nextChar = findNextT();
+
+    /* EOF in a comment                       */
+    if (nextChar == ERRTOK){
+        t.tp = ERR;
+        strcpy(t.lx, "Error: unexpected eof in comment");
+        t.ec = EofInCom;
+        t.ln = ln;
+        return t;
+    }
+
+
+    /* getNextToken methods must now not consume the characters as they are read
+     * this is done by pushing characters read from the file to a stack, popping to ungetc after the token is read   */
+    push(nextChar);
+    //t = eof(t);
+    t = symbol(t);
+
+    while (sP != -1){
+        printf("%d", sP);
+        int lastChar = pop();
+        ungetc(lastChar, sCode);
+    }
 
     return t;
 }
@@ -367,17 +425,22 @@ int main(int argc, char *argv[]){
     if (argc == 2) {
         InitLexer(argv[1]);
         Token t;
-        //t = PeekNextToken();
-
-        t = GetNextToken();
-        while (t.tp != EOFile) {
+        for (int i = 0; i < 4; i ++){
+            t = PeekNextToken();
             printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
-            if (t.tp == ERR) {
-                exit(1);
-            }
-            t = GetNextToken();
         }
-        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+
+
+//        t = GetNextToken();
+//        printf("GET");
+//        while (t.tp != EOFile) {
+//            printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+//            if (t.tp == ERR) {
+//                exit(1);
+//            }
+//            t = GetNextToken();
+//        }
+//        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
 
         StopLexer();
         return 0;
