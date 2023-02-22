@@ -225,7 +225,7 @@ Token keyID(Token t){
     /* lexeme index to assign char to       */
     int i = 0;
     /* add trailing alphanumeric characters to lexeme */
-    while (isalnum(nextChar)){
+    while (isalnum(nextChar) || nextChar=='_'){
         t.lx[i] = (char)nextChar;
         i++;
         nextChar = getc(sCode);
@@ -362,7 +362,7 @@ Token GetNextToken (){
     }
 
     /* keyword or identifier        */
-    else if (isalpha(nextChar)){
+    else if (isalpha(nextChar) || nextChar == '_'){
         t = keyID(t);
         return t;
     }
@@ -419,7 +419,7 @@ Token PeekNextToken (){
     }
 
     /* keyword or identifier        */
-    else if (isalpha(nextChar)){
+    else if (isalpha(nextChar) || nextChar=='_'){
         t = keyID(t);
     }
 
