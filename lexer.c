@@ -47,9 +47,9 @@ char* filename;
 /* variable to hold value of next read char     */
 int nextChar;
 /* variable to hold current line number         */
-int ln = 1;
-/* determine if '/' needs replacing after reading potential comment     */
-int replaceSlash;
+int ln;
+/* determine if '/'  and following char needs replacing after reading potential comment     */
+int replaceChars;
 
 /* push and pop methods below are used throughout token identifier/builder methods
  * to enable the peekNextToken method to put the read chars back
@@ -137,8 +137,7 @@ int skipComment(){
 
         /* not a comment, put char  and '/' back       */
         else {
-            ungetc(nextChar, sCode);
-            replaceSlash = 1;
+            replaceChars = 1;
         }
     }
 
@@ -150,15 +149,16 @@ int findNextT(){
     /* get next character                       */
     nextChar = readNext();
 
-    replaceSlash = 0;
+    replaceChars = 0;
     /* check to remove whitespace or a potential comment  */
     while (isspace(nextChar) || nextChar == '/'){
         nextChar = rmWhitespace();
         nextChar = skipComment();
     }
 
-    /* replace slash if '/' wasn't the start of a comment   */
-    if (replaceSlash == 1){
+    /* replace slash and following non-space char if '/' wasn't the start of a comment   */
+    if (replaceChars == 1){
+        ungetc(nextChar, sCode);
         ungetc('/', sCode);
         nextChar = readNext();
     }
@@ -196,7 +196,7 @@ Token string(Token t){
         /* check for newline mid-string         */
         if (nextChar == '\n'){
             t.tp = ERR;
-            strcpy(t.lx, "Error: unexpected newline in string constant");
+            strcpy(t.lx, "Error: new line in string constant");
             t.ec = NewLnInStr;
             t.ln = ln;
             return t;
@@ -297,7 +297,7 @@ Token symbol(Token t){
 
     /* otherwise must be an illegal symbol     */
     t.tp = ERR;
-    strcpy(t.lx, "ERROR: Illegal Symbol");
+    strcpy(t.lx, "Error: illegal symbol in source file");
     t.ec = IllSym;
     t.ln = ln;
     return t;
@@ -317,6 +317,8 @@ int InitLexer (char* file_name){
     /* attempt to open JACK source file       */
     sCode = fopen(file_name, "r");
 
+    /* set ln to 1                          */
+    ln = 1;
     /* ensures file correctly             */
     if (sCode == NULL){
         printf("Error: File failed to open.\n");
