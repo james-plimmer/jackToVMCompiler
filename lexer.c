@@ -388,8 +388,11 @@ Token PeekNextToken (){
     Token t;
     strcpy(t.fl, filename);
 
-    /* clear lexeme                     */
+    /* clear lexeme and stack                  */
     memset(t.lx,0,sizeof(t.lx));
+    memset(stack,0,128);
+    sP = -1;
+
 
     /* same process as getNextToken for whitespace and comments, as these are not tokens, hence can be removed */
     /* consume all leading whitespace and comments        */
@@ -408,6 +411,7 @@ Token PeekNextToken (){
     /* getNextToken methods must now not consume the characters as they are read
      * this is done by pushing characters read from the file to a stack, popping to ungetc after the token is read   */
     /* push char read by the whitespace / comment skipper   */
+    push(' ');
     push(nextChar);
 
     /* eof                  */
@@ -458,22 +462,21 @@ int main(int argc, char *argv[]){
     // NOTE: the auto-grader will not use your main function
     if (argc == 2) {
         InitLexer(argv[1]);
-        Token t;
-        for (int i = 0; i < 5; i ++){
-            t = PeekNextToken();
-            printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
-        }
+        Token t, s;
 
-
+        s = PeekNextToken();
         t = GetNextToken();
         while (t.tp != EOFile) {
-            printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+            printf("<PEEK: %s, %d, %s, %d >\n", s.fl, s.ln, s.lx, s.tp);
+            printf("< GET: %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
             if (t.tp == ERR) {
                 exit(1);
             }
+            s = PeekNextToken();
             t = GetNextToken();
         }
-        printf("< %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
+        printf("<PEEK: %s, %d, %s, %d >\n", s.fl, s.ln, s.lx, s.tp);
+        printf("< GET: %s, %d, %s, %d >\n", t.fl, t.ln, t.lx, t.tp);
 
         StopLexer();
         return 0;
