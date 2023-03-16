@@ -14,7 +14,6 @@ Email: sc21jpwp@leeds.ac.uk
 Date Work Commenced: 17/2/2023
 *************************************************************************/
 
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,8 +27,8 @@ Date Work Commenced: 17/2/2023
 
 /* array of all keywords - ending with boolean false            */
 const char* KEYWORDS[] = {"class", "constructor", "method", "function", "int", "boolean", "char", "void",
-"var", "static", "field", "let", "do", "if", "else", "while", "return",
-"true", "false", "null", "this", 0};
+                          "var", "static", "field", "let", "do", "if", "else", "while", "return",
+                          "true", "false", "null", "this", 0};
 
 /* array of all legal symbols - ended with boolean false        */
 const char SYMBS[] = {'(',')', '[', ']', '{', '}', '<', '>', '+', '-', '*', '/',
@@ -39,18 +38,19 @@ const char SYMBS[] = {'(',')', '[', ']', '{', '}', '<', '>', '+', '-', '*', '/',
 /* peekNextToken stack - matches max size of the lexeme   */
 int stack[128];
 /* pointer to top of stack - initialised to -1 for an empty stack   */
-int sP = -1;
+int sP;
 /* pointer to the file                          */
 FILE* sCode;
 /* file name                                    */
-char* filename;
+char filename[128];
 /* variable to hold value of next read char     */
 int nextChar;
 /* variable to hold current line number         */
 int ln;
 /* determine if '/'  and following char needs replacing after reading potential comment     */
 int replaceChars;
-
+/* declare token    */
+Token tok;
 /* push and pop methods below are used throughout token identifier/builder methods
  * to enable the peekNextToken method to put the read chars back
  * the stack is not used in getNextToken                            */
@@ -181,6 +181,7 @@ Token eof(Token t){
 Token string(Token t){
     nextChar = getc(sCode);
     push(nextChar);
+
     /* lexeme index to assign char to       */
     int i = 0;
     while(nextChar != '\"'){
@@ -203,22 +204,23 @@ Token string(Token t){
         }
 
         /* otherwise add character to string */
-        t.lx[i] = (char)nextChar;
-        i++;
+        /* truncate lexemes longer than 128 chars */
+        if (i < 127) {
+            t.lx[i] = (char) nextChar;
+            i++;
+        }
         nextChar = getc(sCode);
         push(nextChar);
     }
+    /* add end of string char to lexeme */
+    t.lx[i] = '\0';
 
     /* create string literal token  */
     t.tp = STRING;
     t.ln = ln;
 
-    /* skip past closing '"'      */
-    nextChar = readNext();
-    push(nextChar);
     return t;
 }
-
 
 /* keyword or ID token      */
 Token keyID(Token t){
@@ -226,11 +228,16 @@ Token keyID(Token t){
     int i = 0;
     /* add trailing alphanumeric characters to lexeme */
     while (isalnum(nextChar) || nextChar=='_'){
-        t.lx[i] = (char)nextChar;
-        i++;
+        /* truncate lexemes longer than 128 chars */
+        if (i < 127) {
+            t.lx[i] = (char) nextChar;
+            i++;
+        }
         nextChar = getc(sCode);
         push(nextChar);
     }
+    /* add end of string char to lexeme */
+    t.lx[i] = '\0';
     /* put non-alphanumeric char back  */
     ungetc(nextChar, sCode);
     pop();
@@ -262,11 +269,16 @@ Token integer(Token t){
     int i = 0;
     /* add trailing numeric characters to lexeme */
     while (isdigit(nextChar)){
-        t.lx[i] = (char)nextChar;
-        i++;
+        /* truncate lexemes longer than 128 chars */
+        if (i < 127){
+            t.lx[i] = (char)nextChar;
+            i++;
+        }
         nextChar = getc(sCode);
         push(nextChar);
     }
+    /* add end of string char to lexeme */
+    t.lx[i] = '\0';
     /* put non-digit char back  */
     ungetc(nextChar, sCode);
     pop();
@@ -289,6 +301,8 @@ Token symbol(Token t){
             /* create symbol token           */
             t.tp = SYMBOL;
             t.lx[0] = (char)nextChar;
+            /* add end of string char to lexeme */
+            t.lx[1] = '\0';
             t.ln = ln;
             return t;
         }
@@ -313,17 +327,19 @@ Token symbol(Token t){
 // if everything goes well the function should return 1
 int InitLexer (char* file_name){
 
-    filename = file_name;
+    strcpy(filename, file_name);
     /* attempt to open JACK source file       */
     sCode = fopen(file_name, "r");
-
-    /* set ln to 1                          */
-    ln = 1;
-    /* ensures file correctly             */
+    /* ensures file opens correctly             */
     if (sCode == NULL){
         printf("Error: File failed to open.\n");
         return 0;
     }
+
+    sP = -1;
+    /* set ln to 1                          */
+    ln = 1;
+
     /* successful file open                     */
     return 1;
 }
@@ -332,67 +348,57 @@ int InitLexer (char* file_name){
 // Get the next token from the source file
 Token GetNextToken (){
 
-    /* initialise token                       */
-	Token t;
-    strcpy(t.fl, filename);
-
-    /* clear lexeme                     */
-    memset(t.lx,0,sizeof(t.lx));
+    strcpy(tok.fl, filename);
 
     /* consume all leading whitespace and comments        */
     nextChar = findNextT();
 
     /* EOF in a comment                       */
     if (nextChar == EOFCOM){
-        t.tp = ERR;
-        strcpy(t.lx, "Error: unexpected eof in comment");
-        t.ec = EofInCom;
-        t.ln = ln;
-        return t;
+        tok.tp = ERR;
+        strcpy(tok.lx, "Error: unexpected eof in comment");
+        tok.ec = EofInCom;
+        tok.ln = ln;
+        return tok;
     }
 
     /* check for EOF                          */
     if (nextChar == EOF){
-        t= eof(t);
-        return t;
+        tok = eof(tok);
+        return tok;
     }
 
     /* string literal                         */
     else if (nextChar == '\"'){
-        t = string(t);
-        return t;
+        push('\"');
+        tok = string(tok);
+        return tok;
     }
 
     /* keyword or identifier        */
     else if (isalpha(nextChar) || nextChar == '_'){
-        t = keyID(t);
-        return t;
+        tok = keyID(tok);
+        return tok;
     }
 
     /* number               */
     else if (isdigit(nextChar)){
-        t = integer(t);
-        return t;
+        tok = integer(tok);
+        return tok;
     }
 
     /* if none of above, must be a symbol       */
     else{
-        t = symbol(t);
-        return t;
+        tok = symbol(tok);
+        return tok;
     }
 }
 
 // peek (look) at the next token in the source file without removing it from the stream
 Token PeekNextToken (){
-    /* initialise token                       */
-    Token t;
-    strcpy(t.fl, filename);
 
-    /* clear lexeme and stack                  */
-    memset(t.lx,0,sizeof(t.lx));
-    memset(stack,0,128);
+    strcpy(tok.fl, filename);
     sP = -1;
-
 
     /* same process as getNextToken for whitespace and comments, as these are not tokens, hence can be removed */
     /* consume all leading whitespace and comments        */
@@ -400,15 +406,15 @@ Token PeekNextToken (){
 
     /* EOF in a comment                       */
     if (nextChar == EOFCOM){
-        t.tp = ERR;
-        strcpy(t.lx, "Error: unexpected eof in comment");
-        t.ec = EofInCom;
-        t.ln = ln;
-        return t;
+        tok.tp = ERR;
+        strcpy(tok.lx, "Error: unexpected eof in comment");
+        tok.ec = EofInCom;
+        tok.ln = ln;
+        return tok;
     }
 
 
-    /* getNextToken methods must now not consume the characters as they are read
+    /* peekNextToken methods must now not consume the characters as they are read
      * this is done by pushing characters read from the file to a stack, popping to ungetc after the token is read   */
     /* push char read by the whitespace / comment skipper   */
     push(' ');
@@ -416,27 +422,27 @@ Token PeekNextToken (){
 
     /* eof                  */
     if (nextChar == EOF){
-        t = eof(t);
+        tok = eof(tok);
     }
 
     /* string literal                         */
     else if (nextChar == '\"'){
-        t = string(t);
+        tok = string(tok);
     }
 
     /* keyword or identifier        */
     else if (isalpha(nextChar) || nextChar=='_'){
-        t = keyID(t);
+        tok = keyID(tok);
     }
 
     /* number               */
     else if (isdigit(nextChar)){
-        t = integer(t);
+        tok = integer(tok);
     }
 
     /* must be a symbol if none of the above    */
     else {
-        t = symbol(t);
+        tok = symbol(tok);
     }
 
     /* pop all elements in the stack, replacing them into the source file   */
@@ -445,14 +451,16 @@ Token PeekNextToken (){
         ungetc(lastChar, sCode);
     }
 
-    return t;
+    return tok;
 }
 
 // clean out at end, e.g. close files, free memory, ... etc
 int StopLexer (){
     /* close file                           */
     fclose(sCode);
-	return 0;
+    /* empty filename */
+    memset(filename, 0, 128);
+    return 0;
 }
 
 // do not remove the next line
