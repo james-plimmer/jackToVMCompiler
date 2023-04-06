@@ -1,3 +1,5 @@
 *.jack
 .idea
 *.txt
+.DS_Store
+lexer.dSYM/
